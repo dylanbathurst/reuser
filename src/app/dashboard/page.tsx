@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import CopyButton from "@/Components/CopyButton";
 import { Button } from "@/Components/ui/button";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Table,
   TableBody,
@@ -12,7 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/Components/ui/table";
 import {
   Card,
   CardAction,
@@ -21,16 +23,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/Components/ui/card";
+import { TestUserActionsMenu } from "@/Components/TestUserActionsMenu";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
-interface TestUser {
+interface TestUserModel {
   id: string;
   firstName: string;
   lastName: string;
+  description: string;
   email: string;
   password: string;
   isCheckedOut: boolean;
   checkedOutBy?: User;
   checkedOutAt?: string;
+}
+
+interface TestUser extends Omit<TestUserModel, "id" | "isCheckedOut"> {
+  id?: string;
+  isCheckedOut?: boolean;
 }
 
 interface Organization {
@@ -53,15 +63,17 @@ export default function Dashboard() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [currentOrganization, setCurrentOrganization] =
     useState<Organization | null>(null);
-  const [testUsers, setTestUsers] = useState<TestUser[]>([]);
+  const [testUsers, setTestUsers] = useState<TestUserModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState<'edit' | 'create'>();
   const [showCreateOrgForm, setShowCreateOrgForm] = useState(false);
-  const [newUser, setNewUser] = useState({
+  const [testUserModel, setTestUserModel] = useState<TestUser>({
+    id: "",
     firstName: "",
     lastName: "",
     email: "",
     password: "",
+    description: "",
   });
   const [newOrg, setNewOrg] = useState({
     name: "",
@@ -134,6 +146,26 @@ export default function Dashboard() {
     }
   };
 
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`/api/test-users/${testUserModel.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(testUserModel),
+      });
+      if (response.ok) {
+        setTestUserModel({ id: "", firstName: "", lastName: "", email: "", password: "", description: "" });
+        setShowCreateForm(undefined);
+        fetchTestUsers();
+      }
+    } catch (error) {
+      console.error("Error updating test user:", error);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -143,14 +175,14 @@ export default function Dashboard() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...newUser,
+          ...testUserModel,
           organizationId: orgId,
         }),
       });
 
       if (response.ok) {
-        setNewUser({ firstName: "", lastName: "", email: "", password: "" });
-        setShowCreateForm(false);
+        setTestUserModel({ id: "", firstName: "", lastName: "", email: "", password: "", description: "" });
+        setShowCreateForm(undefined);
         fetchTestUsers();
       }
     } catch (error) {
@@ -212,6 +244,22 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error checking in user:", error);
     }
+  };
+
+  const handleEditUser = async (userId: string) => {
+    const user = testUsers.find((user) => user.id === userId);
+    if (!user) {
+      return;
+    }
+    setTestUserModel({
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      password: user.password,
+      description: user.description ?? "",
+    });
+    setShowCreateForm('edit');
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -350,13 +398,13 @@ export default function Dashboard() {
           </div>
         )}
 
-        {showCreateForm && (
+        {showCreateForm !== undefined && (
           <div className="bg-white rounded-lg shadow p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Create Test User
+              {showCreateForm === 'edit' ? "Edit Test User" : "Create Test User"}
             </h2>
             <form
-              onSubmit={handleCreateUser}
+              onSubmit={showCreateForm === 'edit' ? handleUpdateUser : handleCreateUser }
               className="grid grid-cols-1 md:grid-cols-2 gap-4"
             >
               <div>
@@ -365,9 +413,9 @@ export default function Dashboard() {
                 </label>
                 <input
                   type="text"
-                  value={newUser.firstName}
+                  value={testUserModel.firstName}
                   onChange={(e) =>
-                    setNewUser({ ...newUser, firstName: e.target.value })
+                    setTestUserModel({ ...testUserModel, firstName: e.target.value })
                   }
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -379,9 +427,9 @@ export default function Dashboard() {
                 </label>
                 <input
                   type="text"
-                  value={newUser.lastName}
+                  value={testUserModel.lastName}
                   onChange={(e) =>
-                    setNewUser({ ...newUser, lastName: e.target.value })
+                    setTestUserModel({ ...testUserModel, lastName: e.target.value })
                   }
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -393,9 +441,9 @@ export default function Dashboard() {
                 </label>
                 <input
                   type="email"
-                  value={newUser.email}
+                  value={testUserModel.email}
                   onChange={(e) =>
-                    setNewUser({ ...newUser, email: e.target.value })
+                    setTestUserModel({ ...testUserModel, email: e.target.value })
                   }
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -407,12 +455,26 @@ export default function Dashboard() {
                 </label>
                 <input
                   type="password"
-                  value={newUser.password}
+                  value={testUserModel.password}
                   onChange={(e) =>
-                    setNewUser({ ...newUser, password: e.target.value })
+                    setTestUserModel({ ...testUserModel, password: e.target.value })
                   }
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description <span className="text-xs text-gray-500">(Markdown supported)</span>
+                </label>
+                <textarea
+                  value={testUserModel.description ?? ""}
+                  onChange={(e) =>
+                    setTestUserModel({ ...testUserModel, description: e.target.value as string })
+                  }
+                  className="w-full dark:text-white px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 resize-none font-mono text-sm"
+                  rows={6}
+                  placeholder="Enter description (Markdown supported: **bold**, *italic*, `code`, etc.)"
                 />
               </div>
               <div className="md:col-span-2">
@@ -420,7 +482,7 @@ export default function Dashboard() {
                   type="submit"
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
                 >
-                  Create User
+                  {showCreateForm === 'edit' ? "Update User" : "Create User"}
                 </button>
               </div>
             </form>
@@ -438,9 +500,12 @@ export default function Dashboard() {
             <CardAction>
               <Button
                 size={"sm"}
-                onClick={() => setShowCreateForm(!showCreateForm)}
+                onClick={() => {
+                  console.log('showCreateForm', showCreateForm);
+                  setShowCreateForm(showCreateForm === undefined ? 'create' : undefined)
+                }}
               >
-                {showCreateForm ? "Cancel" : "Add Test User"}
+                {showCreateForm === undefined ? "Add Test User" : "Cancel" }
               </Button>
             </CardAction>
           </CardHeader>
@@ -459,11 +524,12 @@ export default function Dashboard() {
                   </TableCaption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px]">Name</TableHead>
+                      <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Password</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -532,13 +598,60 @@ export default function Dashboard() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right space-x-2">
+                        <TableCell className="px-6 py-4 text-sm text-gray-500 min-w-[200px] max-w-[200px]">
+                          <div className="prose prose-sm max-w-none dark:prose-invert break-words max-h-[100px] overflow-y-auto">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                h1: ({ children }) => <h1 className="m-0 mb-1 last:mb-0">{children}</h1>,
+                                h2: ({ children }) => <h2 className="m-0 mb-1 last:mb-0">{children}</h2>,
+                                h3: ({ children }) => <h3 className="m-0 mb-1 last:mb-0">{children}</h3>,
+                                h4: ({ children }) => <h4 className="m-0 mb-1 last:mb-0">{children}</h4>,
+                                h5: ({ children }) => <h5 className="m-0 mb-1 last:mb-0">{children}</h5>,
+                                h6: ({ children }) => <h6 className="m-0 mb-1 last:mb-0">{children}</h6>,
+                                p: ({ children }) => <p className="m-0 mb-1 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="m-0 mb-1 list-none last:mb-0">{children}</ul>,
+                                ol: ({ children }) => <ol className="m-0 mb-1 last:mb-0 pl-4">{children}</ol>,
+                                li: (props: any) => {
+                                  const { checked, children } = props;
+                                  if (checked !== null && checked !== undefined) {
+                                    return (
+                                      <li style={{ listStyleType: 'none' }} className="my-0 list-none flex items-start">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          readOnly
+                                          className="mr-2 mt-0.5"
+                                          disabled
+                                        />
+                                        <span className="flex-1">{children}</span>
+                                      </li>
+                                    );
+                                  }
+                                  return <li className="my-0">{children}</li>;
+                                },
+                                
+                                code: ({ children }) => (
+                                  <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-xs font-mono">
+                                    {children}
+                                  </code>
+                                ),
+                                pre: ({ children }) => (
+                                  <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                                    {children}
+                                  </pre>
+                                ),
+                              }}
+                            >
+                              {user.description ?? ""}
+                            </ReactMarkdown>
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-6 py-4 items-center flex justify-end whitespace-nowrap text-sm font-medium text-right space-x-2">
                           {user.isCheckedOut ? (
                             <Button
                               onClick={() => handleCheckin(user.id)}
                               variant={"default"}
-                              size={"sm"}
-                              // className="text-blue-600 hover:text-blue-900"
                             >
                               Check In
                             </Button>
@@ -546,20 +659,21 @@ export default function Dashboard() {
                             <Button
                               onClick={() => handleCheckout(user.id)}
                               variant={"outline"}
-                              size={"sm"}
-                              // className="text-green-600 hover:text-green-900"
                             >
                               Check Out
                             </Button>
                           )}
-                          <Button
-                            onClick={() => handleDeleteUser(user.id)}
-                            variant={"destructive"}
-                            size={"sm"}
-                            // className="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </Button>
+                          <TestUserActionsMenu>
+                            <DropdownMenuGroup>
+                              <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteUser(user.id)}>
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                          </TestUserActionsMenu>
                         </TableCell>
                       </TableRow>
                     ))}

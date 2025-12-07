@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { firstName, lastName, email, password, organizationId } =
+    const { firstName, lastName, email, password, organizationId, description } =
       await request.json();
 
     if (!firstName || !lastName || !email || !password || !organizationId) {
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         email,
         password,
         organizationId,
+        description,
       },
     });
 
