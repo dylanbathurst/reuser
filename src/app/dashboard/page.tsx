@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import CopyButton from "@/Components/CopyButton";
 import { Button } from "@/Components/ui/button";
@@ -24,7 +24,7 @@ import {
   CardTitle,
 } from "@/Components/ui/card";
 import { TestUserActionsMenu } from "@/Components/TestUserActionsMenu";
-import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/Components/ui/dropdown-menu";
 
 interface TestUserModel {
   id: string;
@@ -54,7 +54,7 @@ interface User {
   organizationId: string;
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orgId = searchParams.get("orgId");
@@ -685,5 +685,13 @@ export default function Dashboard() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
